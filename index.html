@@ -406,19 +406,15 @@
     <script>
         // Cấu hình frontend: đặt API base về localhost server vừa tạo
         window.__CONFIG__ = Object.assign({}, window.__CONFIG__ || {}, {
-            API_BASE_URL: 'http://localhost:5000/api',
+            API_BASE_URL: 'https://apis-spea.onrender.com/api',
             SW_ENABLED: false,
             REALTIME_ENABLED: true,
         });
-        // API Configuration - Thay đổi URL này khi deploy
-        const API_BASE_URL = (window.__CONFIG__ && window.__CONFIG__.API_BASE_URL)
-            ? window.__CONFIG__.API_BASE_URL
-            : (window.location.hostname === 'localhost' 
-                ? 'http://localhost:5000/api' 
-                : 'https://your-app-name.onrender.com/api'); // Thay your-app-name bằng tên app thực
+        // API Configuration - sử dụng cấu hình từ window.__CONFIG__
+        const API_BASE_URL = window.__CONFIG__.API_BASE_URL || 'https://apis-spea.onrender.com/api';
 
-        // Demo mode: nếu API vẫn là placeholder Render, không gọi API thật để tránh CORS/404
-        const DEMO_MODE = /your-app-name\.onrender\.com\/api/i.test(API_BASE_URL);
+        // Demo mode: chỉ bật khi cần thiết
+        const DEMO_MODE = false;
 
         // Feature flags (có thể override bằng window.__CONFIG__)
         const SW_ENABLED = (window.__CONFIG__ && typeof window.__CONFIG__.SW_ENABLED === 'boolean') ? window.__CONFIG__.SW_ENABLED : false;
