@@ -655,8 +655,11 @@
                     
                     // Mở preview trong modal hoặc tab mới tùy loại file
                     if (['pdf'].includes(fileExtension)) {
-                        // PDF: mở trong tab mới với PDF viewer
-                        window.open(document.fileUrl, '_blank');
+                        // PDF: mở trong tab mới với PDF viewer, đảm bảo Content-Type đúng
+                        const pdfUrl = document.fileUrl.includes('/raw/upload/') 
+                            ? document.fileUrl 
+                            : document.fileUrl.replace('/upload/', '/raw/upload/');
+                        window.open(pdfUrl, '_blank');
                     } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
                         // Hình ảnh: mở trong modal
                         openImageModal(document.fileUrl, document.title);
