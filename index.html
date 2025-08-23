@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ thống Quản lý Tài liệu</title>
+    <title>Há»‡ thá»'ng Quáº£n lÃ½ TÃ i liá»‡u</title>
     <style>
         * {
             margin: 0;
@@ -395,7 +395,7 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="author">✍️ Tác giả</label>
+                    <label for="author">✏️ Tác giả</label>
                     <input type="text" id="author">
                 </div>
                 
@@ -587,7 +587,7 @@
                 if (searchTerm) params.append('search', searchTerm);
                 if (categoryFilter) params.append('category', categoryFilter);
                 
-                const response = await fetch(`${API_BASE_URL}/api/documents?${params}`);
+                const response = await fetch(`${API_BASE_URL}/documents?${params}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -641,7 +641,7 @@
 
                 await new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
-                    xhr.open('POST', `${API_BASE_URL}/api/documents`, true);
+                    xhr.open('POST', `${API_BASE_URL}/documents`, true);
 
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
@@ -711,7 +711,7 @@
                 }
 
                 // Sử dụng endpoint download mới
-                const downloadUrl = `${API_BASE_URL}/api/documents/${documentId}/download`;
+                const downloadUrl = `${API_BASE_URL}/documents/${documentId}/download`;
                 
                 // Mở trong tab mới
                 const newWindow = window.open(downloadUrl, '_blank');
@@ -749,7 +749,7 @@
                 const fileExtension = document.fileName.split('.').pop().toLowerCase();
                 
                 // Sử dụng endpoint preview mới cho tất cả file
-                const previewUrl = `${API_BASE_URL}/api/documents/${documentId}/preview`;
+                const previewUrl = `${API_BASE_URL}/documents/${documentId}/preview`;
                 
                 // Mở preview trong modal hoặc tab mới tùy loại file
                 if (['pdf'].includes(fileExtension)) {
@@ -1040,7 +1040,7 @@
                     <div class="document-category">${safe(doc.category || '')}</div>
                     <div class="document-description">${safe(doc.description || '')}</div>
                     <div style="color: #999; font-size: 0.9em; margin-bottom: 15px;">
-                        📁 ${safe(doc.fileName || '')} • 📊 ${safe(doc.fileSize || '')} • 🕒 ${formatDate(doc.uploadTime)}
+                        📄 ${safe(doc.fileName || '')} • 📊 ${safe(doc.fileSize || '')} • 🕒 ${formatDate(doc.uploadTime)}
                     </div>
                     <div class="document-actions">
                         <button class="btn-small btn-favorite ${isFavorite ? 'active' : ''}" 
@@ -1086,13 +1086,11 @@
                 .replace(/'/g, '&#039;');
         }
 
-        // Không còn dữ liệu demo - chỉ hiển thị dữ liệu thật từ API
-
         // Real-time updates check
         setInterval(async () => {
             if (!isLoading && REALTIME_ENABLED && isServerFilteringEnabled()) {
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/documents`);
+                    const response = await fetch(`${API_BASE_URL}/documents`);
                     if (response.ok) {
                         const newDocuments = await response.json();
                         if (newDocuments.length > documents.length) {
