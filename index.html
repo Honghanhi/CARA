@@ -587,7 +587,7 @@
                 if (searchTerm) params.append('search', searchTerm);
                 if (categoryFilter) params.append('category', categoryFilter);
                 
-                const response = await fetch(`${API_BASE_URL}/documents?${params}`);
+                const response = await fetch(`${API_BASE_URL}/api/documents?${params}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -615,9 +615,33 @@
                 progress.style.display = 'block';
                 progressBar.style.width = '0%';
 
+                // Kiểm tra file trước khi upload
+                const file = formData.get('file');
+                if (!file) {
+                    throw new Error('Vui lòng chọn file để tải lên');
+                }
+
+                // Kiểm tra kích thước file
+                if (file.size > 10 * 1024 * 1024) { // 10MB
+                    throw new Error('File quá lớn. Giới hạn 10MB');
+                }
+
+                // Kiểm tra loại file
+                const allowedTypes = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt'];
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                if (!allowedTypes.includes(fileExtension)) {
+                    throw new Error('Loại file không được hỗ trợ. Chỉ chấp nhận: PDF, DOC, DOCX, PPT, PPTX, TXT');
+                }
+
+                console.log('Uploading file:', {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type
+                });
+
                 await new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
-                    xhr.open('POST', `${API_BASE_URL}/documents`, true);
+                    xhr.open('POST', `${API_BASE_URL}/api/documents`, true);
 
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
@@ -634,6 +658,14 @@
                                 renderDocuments();
                                 resetUploadForm();
                                 showNotification('✅ Tài liệu đã được tải lên thành công!');
+                                
+                                console.log('Upload successful:', {
+                                    id: newDoc._id,
+                                    title: newDoc.title,
+                                    fileName: newDoc.fileName,
+                                    fileType: newDoc.fileType
+                                });
+                                
                                 resolve();
                             } catch (e) {
                                 reject(new Error('Phản hồi không hợp lệ từ máy chủ'));
@@ -648,8 +680,9 @@
                         }
                     };
 
-                    xhr.onerror = () => reject(new Error('Lỗi mạng khi tải lên'));
+                    xhr.onerror = () => reject(new Error('Lỗi mạng khi tải lên. Vui lòng kiểm tra kết nối internet'));
                     xhr.onabort = () => reject(new Error('Đã hủy tải lên'));
+                    xhr.ontimeout = () => reject(new Error('Hết thời gian chờ. Vui lòng thử lại'));
 
                     xhr.send(formData);
                 });
@@ -668,17 +701,33 @@
         async function downloadDocument(documentId) {
             try {
                 const document = documents.find(doc => doc._id === documentId);
-                if (document && document.fileUrl) {
-                    // Chỉ cho phép http(s) link để tránh javascript: URL
-                    if (typeof document.fileUrl === 'string' && /^(https?:)?\/\//i.test(document.fileUrl)) {
-                        window.open(document.fileUrl, '_blank');
-                    } else {
-                        throw new Error('Link tải về không hợp lệ');
-                    }
-                    showNotification(`📥 Đang tải xuống "${document.title}"...`);
-                } else {
-                    throw new Error('Không tìm thấy link tải về');
+                if (!document) {
+                    throw new Error('Không tìm thấy tài liệu');
                 }
+
+                // Kiểm tra xem có URL download không
+                if (!document.downloadUrl && !document.fileUrl) {
+                    throw new Error('Không tìm thấy link tải xuống');
+                }
+
+                // Sử dụng endpoint download mới
+                const downloadUrl = `${API_BASE_URL}/api/documents/${documentId}/download`;
+                
+                // Mở trong tab mới
+                const newWindow = window.open(downloadUrl, '_blank');
+                
+                if (!newWindow) {
+                    throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
+                }
+                
+                showNotification(`📥 Đang tải xuống "${document.title}"...`);
+                
+                console.log('Download initiated:', {
+                    documentId,
+                    fileName: document.fileName,
+                    downloadUrl
+                });
+                
             } catch (error) {
                 console.error('Error downloading document:', error);
                 showNotification('Lỗi khi tải xuống: ' + error.message, 'error');
@@ -688,30 +737,52 @@
         async function previewDocument(documentId) {
             try {
                 const document = documents.find(doc => doc._id === documentId);
-                if (document && document.fileUrl) {
-                    const fileExtension = document.fileName.split('.').pop().toLowerCase();
-                    
-                    // Mở preview trong modal hoặc tab mới tùy loại file
-                    if (['pdf'].includes(fileExtension)) {
-                        // PDF: mở trong tab mới với PDF viewer, đảm bảo Content-Type đúng
-                        const pdfUrl = document.fileUrl.includes('/raw/upload/') 
-                            ? document.fileUrl 
-                            : document.fileUrl.replace('/upload/', '/raw/upload/');
-                        window.open(pdfUrl, '_blank');
-                    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
-                        // Hình ảnh: mở trong modal
-                        openImageModal(document.fileUrl, document.title);
-                    } else if (['txt'].includes(fileExtension)) {
-                        // Text: fetch và hiển thị nội dung
-                        openTextModal(document.fileUrl, document.title);
-                    } else {
-                        // File khác: mở trong tab mới
-                        window.open(document.fileUrl, '_blank');
-                    }
-                    showNotification(`👁️ Đang xem trước "${document.title}"...`);
-                } else {
-                    throw new Error('Không tìm thấy file để xem');
+                if (!document) {
+                    throw new Error('Không tìm thấy tài liệu');
                 }
+
+                // Kiểm tra xem có URL preview không
+                if (!document.previewUrl && !document.fileUrl) {
+                    throw new Error('Không tìm thấy link xem trước');
+                }
+
+                const fileExtension = document.fileName.split('.').pop().toLowerCase();
+                
+                // Sử dụng endpoint preview mới cho tất cả file
+                const previewUrl = `${API_BASE_URL}/api/documents/${documentId}/preview`;
+                
+                // Mở preview trong modal hoặc tab mới tùy loại file
+                if (['pdf'].includes(fileExtension)) {
+                    // PDF: mở trong tab mới với PDF viewer, đảm bảo Content-Type đúng
+                    const newWindow = window.open(previewUrl, '_blank');
+                    
+                    if (!newWindow) {
+                        throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
+                    }
+                } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
+                    // Hình ảnh: mở trong modal
+                    openImageModal(document.fileUrl, document.title);
+                } else if (['txt'].includes(fileExtension)) {
+                    // Text: fetch và hiển thị nội dung
+                    openTextModal(document.fileUrl, document.title);
+                } else {
+                    // File khác: mở trong tab mới
+                    const newWindow = window.open(previewUrl, '_blank');
+                    
+                    if (!newWindow) {
+                        throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
+                    }
+                }
+                
+                showNotification(`👁️ Đang xem trước "${document.title}"...`);
+                
+                console.log('Preview initiated:', {
+                    documentId,
+                    fileName: document.fileName,
+                    fileType: fileExtension,
+                    previewUrl
+                });
+                
             } catch (error) {
                 console.error('Error previewing document:', error);
                 showNotification('Lỗi khi xem trước: ' + error.message, 'error');
@@ -1021,7 +1092,7 @@
         setInterval(async () => {
             if (!isLoading && REALTIME_ENABLED && isServerFilteringEnabled()) {
                 try {
-                    const response = await fetch(`${API_BASE_URL}/documents`);
+                    const response = await fetch(`${API_BASE_URL}/api/documents`);
                     if (response.ok) {
                         const newDocuments = await response.json();
                         if (newDocuments.length > documents.length) {
@@ -1037,6 +1108,43 @@
             }
         }, 30000); // Check every 30 seconds
 
+        // Kiểm tra kết nối server và hỗ trợ PDF
+        async function checkServerConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    const health = await response.json();
+                    console.log('Server health:', health);
+                    
+                    // Kiểm tra hỗ trợ PDF
+                    if (health.features && health.features.pdfSupport) {
+                        console.log('✅ PDF support enabled');
+                        showNotification('✅ Hỗ trợ PDF đã được kích hoạt', 'success');
+                    }
+                    
+                    return true;
+                }
+            } catch (error) {
+                console.error('Server connection error:', error);
+            }
+            return false;
+        }
+
+        // Kiểm tra loại file được hỗ trợ
+        async function checkSupportedTypes() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/supported-types`);
+                if (response.ok) {
+                    const types = await response.json();
+                    console.log('Supported file types:', types);
+                    return types;
+                }
+            } catch (error) {
+                console.error('Error checking supported types:', error);
+            }
+            return null;
+        }
+
         // Service Worker for offline support (optional)
         if ('serviceWorker' in navigator && SW_ENABLED) {
             window.addEventListener('load', () => {
@@ -1045,6 +1153,12 @@
                     .catch(() => console.log('SW registration failed'));
             });
         }
+
+        // Kiểm tra server khi trang load
+        window.addEventListener('load', async () => {
+            await checkServerConnection();
+            await checkSupportedTypes();
+        });
     </script>
 </body>
 </html>
