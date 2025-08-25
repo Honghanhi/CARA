@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hệ thống Quản lý Tài liệu</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
     <style>
         * {
             margin: 0;
@@ -258,10 +257,6 @@
             background: #f44336;
         }
 
-        .notification.warning {
-            background: #ff9800;
-        }
-
         /* Modal styles */
         .modal-overlay {
             position: fixed;
@@ -354,22 +349,6 @@
             margin-bottom: 10px;
         }
 
-        .server-status {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border-left: 4px solid #ff9800;
-        }
-
-        .server-status.connected {
-            border-left-color: #4CAF50;
-        }
-
-        .server-status.error {
-            border-left-color: #f44336;
-        }
-
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -395,11 +374,6 @@
             <h1>📚 Hệ thống Quản lý Tài liệu</h1>
             <p style="text-align: center; color: #666;">Chia sẻ và quản lý tài liệu học tập một cách dễ dàng</p>
         </header>
-
-        <!-- Server Status -->
-        <div class="server-status" id="serverStatus" style="display: none;">
-            <div id="serverStatusText">🔄 Đang kiểm tra kết nối server...</div>
-        </div>
 
         <!-- Upload Section -->
         <div class="upload-section">
@@ -494,21 +468,12 @@
     <div class="notification" id="notification" aria-live="polite" aria-atomic="true"></div>
 
     <script>
-        // Suppress Chrome extension errors
-        window.addEventListener('error', function(e) {
-            if (e.message && e.message.includes('extension')) {
-                e.preventDefault();
-                return false;
-            }
-        });
-
         // Cấu hình frontend: đặt API base về server production
         window.__CONFIG__ = Object.assign({}, window.__CONFIG__ || {}, {
-            API_BASE_URL: 'https://apis-spea.onrender.com',
+            API_BASE_URL:  'https://apis-spea.onrender.com/api',
             SW_ENABLED: false,
             REALTIME_ENABLED: true,
         });
-        
         // API Configuration - sử dụng cấu hình từ window.__CONFIG__
         const API_BASE_URL = window.__CONFIG__.API_BASE_URL || 'https://apis-spea.onrender.com';
 
@@ -528,6 +493,7 @@
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
+            // Reset tất cả trạng thái khi load trang
             resetAllStates();
             setupEventListeners();
             loadDocuments();
@@ -572,56 +538,6 @@
             console.log('✅ Đã reset tất cả trạng thái');
         }
 
-        async function checkServerConnection() {
-            const serverStatus = document.getElementById('serverStatus');
-            const serverStatusText = document.getElementById('serverStatusText');
-            
-            serverStatus.style.display = 'block';
-            serverStatusText.textContent = '🔄 Đang kiểm tra kết nối server...';
-            serverStatus.className = 'server-status';
-
-            try {
-                // Thử kết nối với timeout
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                
-                const response = await fetch(`${API_BASE_URL}/documents`, {
-                    signal: controller.signal,
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                    }
-                });
-                
-                clearTimeout(timeoutId);
-                
-                if (response.ok || response.status === 404) {
-                    // 404 cũng có nghĩa là server đang hoạt động
-                    isServerConnected = true;
-                    isOfflineMode = false;
-                    serverStatusText.textContent = '✅ Server đã kết nối';
-                    serverStatus.className = 'server-status connected';
-                    
-                    setTimeout(() => {
-                        serverStatus.style.display = 'none';
-                    }, 3000);
-                    
-                    return true;
-                }
-            } catch (error) {
-                console.log('Server connection failed:', error.message);
-            }
-
-            // Fallback to offline mode
-            isServerConnected = false;
-            isOfflineMode = true;
-            serverStatusText.textContent = '⚠️ Chế độ offline - Sử dụng dữ liệu demo';
-            serverStatus.className = 'server-status error';
-            
-            showNotification('Không thể kết nối server. Chuyển sang chế độ demo', 'warning');
-            return false;
-        }
-
         function setupEventListeners() {
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
@@ -649,6 +565,7 @@
             categoryFilter.addEventListener('change', filterDocuments);
         }
 
+        // Debounce function for search
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -661,6 +578,7 @@
             };
         }
 
+        // API Functions
         async function loadDocuments(searchTerm = '', categoryFilter = '') {
             try {
                 setLoading(true);
@@ -788,3 +706,485 @@
                 }, 500);
             }
         }
+
+        async function downloadDocument(documentId) {
+            try {
+                const document = documents.find(doc => doc._id === documentId);
+                if (!document) {
+                    throw new Error('Không tìm thấy tài liệu');
+                }
+
+                // Kiểm tra xem có URL download không
+                if (!document.downloadUrl && !document.fileUrl) {
+                    throw new Error('Không tìm thấy link tải xuống');
+                }
+
+                // Sử dụng endpoint download mới
+                const downloadUrl = `${API_BASE_URL}/documents/${documentId}/download`;
+                
+                // Tạo iframe tạm thời để tải xuống
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                iframe.src = downloadUrl;
+
+                // Xóa iframe sau khi đã bắt đầu tải xuống
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                }, 2000);
+                
+                showNotification(`📥 Đang tải xuống "${document.title}"...`);
+                
+                console.log('Download initiated:', {
+                    documentId,
+                    fileName: document.fileName,
+                    downloadUrl
+                });
+                
+            } catch (error) {
+                console.error('Error downloading document:', error);
+                showNotification('Lỗi khi tải xuống: ' + error.message, 'error');
+            }
+        }
+
+        async function previewDocument(documentId) {
+            try {
+                const document = documents.find(doc => doc._id === documentId);
+                if (!document) {
+                    throw new Error('Không tìm thấy tài liệu');
+                }
+
+                // Kiểm tra xem có URL preview không
+                if (!document.previewUrl && !document.fileUrl) {
+                    throw new Error('Không tìm thấy link xem trước');
+                }
+
+                const fileExtension = document.fileName.split('.').pop().toLowerCase();
+                
+                // Sử dụng endpoint preview mới cho tất cả file
+                const previewUrl = `${API_BASE_URL}/documents/${documentId}/preview`;
+                
+                // Mở preview trong modal hoặc tab mới tùy loại file
+                if (['pdf'].includes(fileExtension)) {
+                    // PDF: mở trong modal với PDF viewer nhúng
+                    const modal = document.createElement('div');
+                    modal.className = 'modal-overlay';
+                    modal.innerHTML = `
+                        <div class="modal-content" style="width: 90%; height: 90%;">
+                            <div class="modal-header">
+                                <h3>${escapeHTML(document.title)}</h3>
+                                <button onclick="this.closest('.modal-overlay').remove()" class="close-btn">&times;</button>
+                            </div>
+                            <div class="modal-body" style="height: calc(100% - 60px); padding: 0;">
+                                <iframe 
+                                    src="${previewUrl}" 
+                                    style="width: 100%; height: 100%; border: none;"
+                                    allowfullscreen
+                                ></iframe>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
+                    // Hình ảnh: mở trong modal
+                    openImageModal(document.fileUrl, document.title);
+                } else if (['txt'].includes(fileExtension)) {
+                    // Text: fetch và hiển thị nội dung
+                    openTextModal(document.fileUrl, document.title);
+                } else {
+                    // File khác: mở trong tab mới
+                    const newWindow = window.open(previewUrl, '_blank');
+                    
+                    if (!newWindow) {
+                        throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
+                    }
+                }
+                
+                showNotification(`👁️ Đang xem trước "${document.title}"...`);
+                
+                console.log('Preview initiated:', {
+                    documentId,
+                    fileName: document.fileName,
+                    fileType: fileExtension,
+                    previewUrl
+                });
+                
+            } catch (error) {
+                console.error('Error previewing document:', error);
+                showNotification('Lỗi khi xem trước: ' + error.message, 'error');
+            }
+        }
+
+        function openImageModal(imageUrl, title) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>${escapeHTML(title)}</h3>
+                        <button onclick="this.closest('.modal-overlay').remove()" class="close-btn">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <img src="${imageUrl}" alt="${escapeHTML(title)}" style="max-width: 100%; height: auto;">
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        async function openTextModal(textUrl, title) {
+            try {
+                const response = await fetch(textUrl);
+                const text = await response.text();
+                
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>${escapeHTML(title)}</h3>
+                            <button onclick="this.closest('.modal-overlay').remove()" class="close-btn">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <pre style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;">${escapeHTML(text)}</pre>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            } catch (error) {
+                showNotification('Không thể đọc nội dung file text', 'error');
+            }
+        }
+
+        // UI Helper Functions
+        function setLoading(loading) {
+            isLoading = loading;
+            const loadingState = document.getElementById('loadingState');
+            const documentsGrid = document.getElementById('documentsGrid');
+            
+            if (loading) {
+                loadingState.style.display = 'block';
+                documentsGrid.style.display = 'none';
+            } else {
+                loadingState.style.display = 'none';
+                documentsGrid.style.display = 'grid';
+            }
+        }
+
+        function setSubmitButtonLoading(loading) {
+            const submitBtn = document.getElementById('submitBtn');
+            if (loading) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '⏳ Đang tải lên...';
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 Tải lên tài liệu';
+            }
+        }
+
+        // File Upload Handlers
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelection(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileSelection(file);
+            }
+        }
+
+        function handleFileSelection(file) {
+            // Validate file type
+            const allowedTypes = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowedTypes.includes(fileExtension)) {
+                showNotification('Loại file không được hỗ trợ! Chỉ chấp nhận: PDF, DOC, DOCX, PPT, PPTX, TXT', 'error');
+                return;
+            }
+
+            // Check file size (10MB limit)
+            if (file.size > 10 * 1024 * 1024) {
+                showNotification('File quá lớn! Kích thước tối đa là 10MB', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('documentForm').style.display = 'block';
+            
+            // Auto-fill title from filename
+            const titleInput = document.getElementById('title');
+            const fileName = file.name.split('.')[0];
+            titleInput.value = fileName.replace(/[-_]/g, ' ');
+
+            showNotification('File đã được chọn. Vui lòng điền thông tin!');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            if (!selectedFile) {
+                showNotification('Vui lòng chọn file!', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('title', document.getElementById('title').value);
+            formData.append('author', document.getElementById('author').value);
+            formData.append('category', document.getElementById('category').value);
+            formData.append('description', document.getElementById('description').value);
+
+            uploadDocument(formData);
+        }
+
+        function resetUploadForm() {
+            document.getElementById('documentForm').reset();
+            document.getElementById('documentForm').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            selectedFile = null;
+        }
+
+        // Favorites Functions
+        function toggleFavorite(documentId) {
+            const index = favorites.indexOf(documentId);
+            if (index > -1) {
+                favorites.splice(index, 1);
+                showNotification('❌ Đã bỏ yêu thích');
+            } else {
+                favorites.push(documentId);
+                showNotification('⭐ Đã thêm vào yêu thích');
+            }
+            
+            // Không lưu vào localStorage nữa - chỉ lưu trong session
+            renderDocuments();
+        }
+
+        function toggleFavorites() {
+            showOnlyFavorites = !showOnlyFavorites;
+            const btn = document.getElementById('favoritesBtn');
+            btn.textContent = showOnlyFavorites ? '📚 Tất cả' : '⭐ Yêu thích';
+            btn.style.background = showOnlyFavorites ? 
+                'linear-gradient(45deg, #ff6b6b, #ffa500)' : 
+                'linear-gradient(45deg, #667eea, #764ba2)';
+            renderDocuments();
+        }
+
+        // Filter Functions
+        function filterDocuments() {
+            const searchTerm = document.getElementById('searchInput').value;
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            
+            // For API-based filtering, reload documents with filters
+            if (isServerFilteringEnabled()) {
+                loadDocuments(searchTerm, categoryFilter);
+            } else {
+                // Fallback to client-side filtering for demo
+                renderDocuments(searchTerm, categoryFilter);
+            }
+        }
+
+        function isServerFilteringEnabled() {
+            try {
+                const url = new URL(API_BASE_URL, window.location.origin);
+                return url.hostname !== 'localhost' && url.hostname !== '127.0.0.1';
+            } catch {
+                return false;
+            }
+        }
+
+        function refreshDocuments() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('categoryFilter').value = '';
+            loadDocuments();
+            showNotification('🔄 Đã làm mới danh sách tài liệu');
+        }
+
+        // Render Functions
+        function renderDocuments(searchTerm = '', categoryFilter = '') {
+            const grid = document.getElementById('documentsGrid');
+            const emptyState = document.getElementById('emptyState');
+            
+            let filteredDocuments = documents;
+
+            // Apply client-side filters if needed
+            if (showOnlyFavorites) {
+                filteredDocuments = filteredDocuments.filter(doc => favorites.includes(doc._id || doc.id));
+            }
+
+            // Client-side search (fallback)
+            if (searchTerm && !isServerFilteringEnabled()) {
+                const st = (searchTerm || '').toLowerCase();
+                filteredDocuments = filteredDocuments.filter(doc =>
+                    ((doc.title || '').toLowerCase().includes(st)) ||
+                    ((doc.author || '').toLowerCase().includes(st)) ||
+                    ((doc.description || '').toLowerCase().includes(st))
+                );
+            }
+
+            // Client-side category filter (fallback)
+            if (categoryFilter && !isServerFilteringEnabled()) {
+                filteredDocuments = filteredDocuments.filter(doc => doc.category === categoryFilter);
+            }
+
+            if (filteredDocuments.length === 0) {
+                grid.style.display = 'none';
+                emptyState.style.display = 'block';
+                emptyState.innerHTML = searchTerm || categoryFilter || showOnlyFavorites ? 
+                    '<h3>🔍 Không tìm thấy tài liệu</h3><p>Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc</p>' :
+                    '<h3>📚 Chưa có tài liệu nào</h3><p>Hãy bắt đầu bằng cách tải lên tài liệu đầu tiên!</p>';
+                return;
+            }
+
+            grid.style.display = 'grid';
+            emptyState.style.display = 'none';
+
+            grid.innerHTML = filteredDocuments.map(doc => {
+                const docId = doc._id || doc.id;
+                const isFavorite = favorites.includes(docId);
+                const safe = escapeHTML;
+                
+                return `
+                <div class="document-card">
+                    <div class="document-title">${safe(doc.title || '')}</div>
+                    <div class="document-author">👤 ${safe(doc.author || '')}</div>
+                    <div class="document-category">${safe(doc.category || '')}</div>
+                    <div class="document-description">${safe(doc.description || '')}</div>
+                    <div style="color: #999; font-size: 0.9em; margin-bottom: 15px;">
+                        📁 ${safe(doc.fileName || '')} • 📊 ${safe(doc.fileSize || '')} • 🕒 ${formatDate(doc.uploadTime)}
+                    </div>
+                    <div class="document-actions">
+                        <button class="btn-small btn-favorite ${isFavorite ? 'active' : ''}" 
+                                onclick="toggleFavorite('${docId}')">
+                            ${isFavorite ? '❤️' : '🤍'} Yêu thích
+                        </button>
+                        <button class="btn-small btn-preview" onclick="previewDocument('${docId}')">
+                            👁️ Xem trước
+                        </button>
+                        <button class="btn-small btn-download" onclick="downloadDocument('${docId}')">
+                            📥 Tải về
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Utility Functions
+        function formatDate(date) {
+            const d = new Date(date);
+            return d.toLocaleDateString('vi-VN');
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = String(message || '');
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        // Escape HTML để chống XSS khi render dữ liệu từ server
+        function escapeHTML(unsafe) {
+            return String(unsafe || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Không còn dữ liệu demo - chỉ hiển thị dữ liệu thật từ API
+
+        // Real-time updates check
+        setInterval(async () => {
+            if (!isLoading && REALTIME_ENABLED && isServerFilteringEnabled()) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/documents`);
+                    if (response.ok) {
+                        const newDocuments = await response.json();
+                        if (newDocuments.length > documents.length) {
+                            documents = newDocuments;
+                            renderDocuments();
+                            showNotification('🔄 Có tài liệu mới được cập nhật!');
+                        }
+                    }
+                } catch (error) {
+                    // Silently fail for background updates
+                    console.log('Background update failed:', error);
+                }
+            }
+        }, 30000); // Check every 30 seconds
+
+        // Kiểm tra kết nối server và hỗ trợ PDF
+        async function checkServerConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/system/health`);
+                if (response.ok) {
+                    const health = await response.json();
+                    console.log('Server health:', health);
+                    
+                    // Kiểm tra hỗ trợ PDF
+                    if (health.features && health.features.pdfSupport) {
+                        console.log('✅ PDF support enabled');
+                        showNotification('✅ Hỗ trợ PDF đã được kích hoạt', 'success');
+                    }
+                    
+                    return true;
+                }
+            } catch (error) {
+                console.error('Server connection error:', error);
+            }
+            return false;
+        }
+
+        // Kiểm tra loại file được hỗ trợ
+        async function checkSupportedTypes() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/system/supported-types`);
+                if (response.ok) {
+                    const types = await response.json();
+                    console.log('Supported file types:', types);
+                    return types;
+                }
+            } catch (error) {
+                console.error('Error checking supported types:', error);
+            }
+            return null;
+        }
+
+        // Service Worker for offline support (optional)
+        if ('serviceWorker' in navigator && SW_ENABLED) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(() => console.log('SW registered'))
+                    .catch(() => console.log('SW registration failed'));
+            });
+        }
+
+        // Kiểm tra server khi trang load
+        window.addEventListener('load', async () => {
+            await checkServerConnection();
+            await checkSupportedTypes();
+        });
+    </script>
+</body>
+</html>
