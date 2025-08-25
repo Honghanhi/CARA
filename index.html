@@ -748,72 +748,68 @@
         }
 
         async function previewDocument(documentId) {
-            try {
-                const document = documents.find(doc => doc._id === documentId);
-                if (!document) {
-                    throw new Error('Không tìm thấy tài liệu');
-                }
+    try {
+        const doc = documents.find(d => d._id === documentId);
+        if (!doc) {
+            throw new Error('Không tìm thấy tài liệu');
+        }
 
-                // Kiểm tra xem có URL preview không
-                if (!document.previewUrl && !document.fileUrl) {
-                    throw new Error('Không tìm thấy link xem trước');
-                }
+        // Kiểm tra xem có URL preview không
+        if (!doc.previewUrl && !doc.fileUrl) {
+            throw new Error('Không tìm thấy link xem trước');
+        }
 
-                const fileExtension = document.fileName.split('.').pop().toLowerCase();
-                
-                // Sử dụng endpoint preview mới cho tất cả file
-                const previewUrl = `${API_BASE_URL}/documents/${documentId}/preview`;
-                
-                // Mở preview trong modal hoặc tab mới tùy loại file
-                if (['pdf'].includes(fileExtension)) {
-                    // PDF: mở trong modal với PDF viewer nhúng
-                    const modal = document.createElement('div');
-                    modal.className = 'modal-overlay';
-                    modal.innerHTML = `
-                        <div class="modal-content" style="width: 90%; height: 90%;">
-                            <div class="modal-header">
-                                <h3>${escapeHTML(document.title)}</h3>
-                                <button onclick="this.closest('.modal-overlay').remove()" class="close-btn">&times;</button>
-                            </div>
-                            <div class="modal-body" style="height: calc(100% - 60px); padding: 0;">
-                                <iframe 
-                                    src="${previewUrl}" 
-                                    style="width: 100%; height: 100%; border: none;"
-                                    allowfullscreen
-                                ></iframe>
-                            </div>
-                        </div>
-                    `;
-                    document.body.appendChild(modal);
-                } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
-                    // Hình ảnh: mở trong modal
-                    openImageModal(document.fileUrl, document.title);
-                } else if (['txt'].includes(fileExtension)) {
-                    // Text: fetch và hiển thị nội dung
-                    openTextModal(document.fileUrl, document.title);
-                } else {
-                    // File khác: mở trong tab mới
-                    const newWindow = window.open(previewUrl, '_blank');
-                    
-                    if (!newWindow) {
-                        throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
-                    }
-                }
-                
-                showNotification(`👁️ Đang xem trước "${document.title}"...`);
-                
-                console.log('Preview initiated:', {
-                    documentId,
-                    fileName: document.fileName,
-                    fileType: fileExtension,
-                    previewUrl
-                });
-                
-            } catch (error) {
-                console.error('Error previewing document:', error);
-                showNotification('Lỗi khi xem trước: ' + error.message, 'error');
+        const fileExtension = doc.fileName.split('.').pop().toLowerCase();
+        
+        // Sử dụng endpoint preview mới cho tất cả file
+        const previewUrl = `${API_BASE_URL}/documents/${documentId}/preview`;
+        
+        if (['pdf'].includes(fileExtension)) {
+            // PDF: mở trong modal
+            const modal = document.createElement('div'); // giờ document là đúng DOM API
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content" style="width: 90%; height: 90%;">
+                    <div class="modal-header">
+                        <h3>${escapeHTML(doc.title)}</h3>
+                        <button onclick="this.closest('.modal-overlay').remove()" class="close-btn">&times;</button>
+                    </div>
+                    <div class="modal-body" style="height: calc(100% - 60px); padding: 0;">
+                        <iframe 
+                            src="${previewUrl}" 
+                            style="width: 100%; height: 100%; border: none;"
+                            allowfullscreen
+                        ></iframe>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
+            openImageModal(doc.fileUrl, doc.title);
+        } else if (['txt'].includes(fileExtension)) {
+            openTextModal(doc.fileUrl, doc.title);
+        } else {
+            const newWindow = window.open(previewUrl, '_blank');
+            if (!newWindow) {
+                throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
             }
         }
+        
+        showNotification(`👁️ Đang xem trước "${doc.title}"...`);
+        
+        console.log('Preview initiated:', {
+            documentId,
+            fileName: doc.fileName,
+            fileType: fileExtension,
+            previewUrl
+        });
+        
+    } catch (error) {
+        console.error('Error previewing document:', error);
+        showNotification('Lỗi khi xem trước: ' + error.message, 'error');
+    }
+}
+
 
         function openImageModal(imageUrl, title) {
             const modal = document.createElement('div');
