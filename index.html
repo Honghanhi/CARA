@@ -468,14 +468,14 @@
     <div class="notification" id="notification" aria-live="polite" aria-atomic="true"></div>
 
     <script>
-        // Cấu hình frontend: đặt API base về localhost server vừa tạo
+        // Cấu hình frontend: đặt API base về server production
         window.__CONFIG__ = Object.assign({}, window.__CONFIG__ || {}, {
-            API_BASE_URL: 'https://apis-spea.onrender.com/api',
+            API_BASE_URL: 'https://apis-spea.onrender.com',
             SW_ENABLED: false,
             REALTIME_ENABLED: true,
         });
         // API Configuration - sử dụng cấu hình từ window.__CONFIG__
-        const API_BASE_URL = window.__CONFIG__.API_BASE_URL || 'https://apis-spea.onrender.com/api';
+        const API_BASE_URL = window.__CONFIG__.API_BASE_URL || 'https://apis-spea.onrender.com';
 
         // Không dùng demo mode - chỉ hiển thị dữ liệu thật từ API
         const DEMO_MODE = false;
@@ -587,7 +587,7 @@
                 if (searchTerm) params.append('search', searchTerm);
                 if (categoryFilter) params.append('category', categoryFilter);
                 
-                const response = await fetch(`${API_BASE_URL}/api/documents?${params}`);
+                const response = await fetch(`${API_BASE_URL}/documents?${params}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -650,7 +650,7 @@
                 
                 await new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
-                    xhr.open('POST', `${API_BASE_URL}/api/documents`, true);
+                    xhr.open('POST', `${API_BASE_URL}/documents`, true);
 
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
@@ -720,7 +720,7 @@
                 }
 
                 // Sử dụng endpoint download mới
-                const downloadUrl = `${API_BASE_URL}/api/documents/${documentId}/download`;
+                const downloadUrl = `${API_BASE_URL}/documents/${documentId}/download`;
                 
                 // Tạo iframe tạm thời để tải xuống
                 const iframe = document.createElement('iframe');
@@ -762,7 +762,7 @@
                 const fileExtension = document.fileName.split('.').pop().toLowerCase();
                 
                 // Sử dụng endpoint preview mới cho tất cả file
-                const previewUrl = `${API_BASE_URL}/api/documents/${documentId}/preview`;
+                const previewUrl = `${API_BASE_URL}/documents/${documentId}/preview`;
                 
                 // Mở preview trong modal hoặc tab mới tùy loại file
                 if (['pdf'].includes(fileExtension)) {
@@ -1118,7 +1118,7 @@
         setInterval(async () => {
             if (!isLoading && REALTIME_ENABLED && isServerFilteringEnabled()) {
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/documents`);
+                    const response = await fetch(`${API_BASE_URL}/documents`);
                     if (response.ok) {
                         const newDocuments = await response.json();
                         if (newDocuments.length > documents.length) {
@@ -1137,7 +1137,7 @@
         // Kiểm tra kết nối server và hỗ trợ PDF
         async function checkServerConnection() {
             try {
-                const response = await fetch(`${API_BASE_URL}/health`);
+                const response = await fetch(`${API_BASE_URL}/system/health`);
                 if (response.ok) {
                     const health = await response.json();
                     console.log('Server health:', health);
@@ -1159,7 +1159,7 @@
         // Kiểm tra loại file được hỗ trợ
         async function checkSupportedTypes() {
             try {
-                const response = await fetch(`${API_BASE_URL}/supported-types`);
+                const response = await fetch(`${API_BASE_URL}/system/supported-types`);
                 if (response.ok) {
                     const types = await response.json();
                     console.log('Supported file types:', types);
