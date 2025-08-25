@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CARA</title>
+    <title>Hệ thống Quản lý Tài liệu</title>
     <style>
         * {
             margin: 0;
@@ -395,7 +395,7 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="author">✏️ Tác giả</label>
+                    <label for="author">✍️ Tác giả</label>
                     <input type="text" id="author">
                 </div>
                 
@@ -587,7 +587,7 @@
                 if (searchTerm) params.append('search', searchTerm);
                 if (categoryFilter) params.append('category', categoryFilter);
                 
-                const response = await fetch(`${API_BASE_URL}/documents?${params}`);
+                const response = await fetch(`${API_BASE_URL}/api/documents?${params}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -639,9 +639,18 @@
                     type: file.type
                 });
 
+                // Thêm metadata cho Cloudinary
+                const formDataWithMetadata = new FormData();
+                for (let [key, value] of formData.entries()) {
+                    formDataWithMetadata.append(key, value);
+                }
+                // Thêm các tham số cho PDF public
+                formDataWithMetadata.append('resource_type', 'raw');
+                formDataWithMetadata.append('access_mode', 'public');
+                
                 await new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
-                    xhr.open('POST', `${API_BASE_URL}/documents`, true);
+                    xhr.open('POST', `${API_BASE_URL}/api/documents`, true);
 
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
@@ -711,14 +720,18 @@
                 }
 
                 // Sử dụng endpoint download mới
-                const downloadUrl = `${API_BASE_URL}/documents/${documentId}/download`;
+                const downloadUrl = `${API_BASE_URL}/api/documents/${documentId}/download`;
                 
-                // Mở trong tab mới
-                const newWindow = window.open(downloadUrl, '_blank');
-                
-                if (!newWindow) {
-                    throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
-                }
+                // Tạo iframe tạm thời để tải xuống
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                iframe.src = downloadUrl;
+
+                // Xóa iframe sau khi đã bắt đầu tải xuống
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                }, 2000);
                 
                 showNotification(`📥 Đang tải xuống "${document.title}"...`);
                 
@@ -749,16 +762,29 @@
                 const fileExtension = document.fileName.split('.').pop().toLowerCase();
                 
                 // Sử dụng endpoint preview mới cho tất cả file
-                const previewUrl = `${API_BASE_URL}/documents/${documentId}/preview`;
+                const previewUrl = `${API_BASE_URL}/api/documents/${documentId}/preview`;
                 
                 // Mở preview trong modal hoặc tab mới tùy loại file
                 if (['pdf'].includes(fileExtension)) {
-                    // PDF: mở trong tab mới với PDF viewer, đảm bảo Content-Type đúng
-                    const newWindow = window.open(previewUrl, '_blank');
-                    
-                    if (!newWindow) {
-                        throw new Error('Trình duyệt chặn popup. Vui lòng cho phép popup và thử lại.');
-                    }
+                    // PDF: mở trong modal với PDF viewer nhúng
+                    const modal = document.createElement('div');
+                    modal.className = 'modal-overlay';
+                    modal.innerHTML = `
+                        <div class="modal-content" style="width: 90%; height: 90%;">
+                            <div class="modal-header">
+                                <h3>${escapeHTML(document.title)}</h3>
+                                <button onclick="this.closest('.modal-overlay').remove()" class="close-btn">&times;</button>
+                            </div>
+                            <div class="modal-body" style="height: calc(100% - 60px); padding: 0;">
+                                <iframe 
+                                    src="${previewUrl}" 
+                                    style="width: 100%; height: 100%; border: none;"
+                                    allowfullscreen
+                                ></iframe>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
                 } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
                     // Hình ảnh: mở trong modal
                     openImageModal(document.fileUrl, document.title);
@@ -1040,7 +1066,7 @@
                     <div class="document-category">${safe(doc.category || '')}</div>
                     <div class="document-description">${safe(doc.description || '')}</div>
                     <div style="color: #999; font-size: 0.9em; margin-bottom: 15px;">
-                        📄 ${safe(doc.fileName || '')} • 📊 ${safe(doc.fileSize || '')} • 🕒 ${formatDate(doc.uploadTime)}
+                        📁 ${safe(doc.fileName || '')} • 📊 ${safe(doc.fileSize || '')} • 🕒 ${formatDate(doc.uploadTime)}
                     </div>
                     <div class="document-actions">
                         <button class="btn-small btn-favorite ${isFavorite ? 'active' : ''}" 
@@ -1086,11 +1112,13 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // Không còn dữ liệu demo - chỉ hiển thị dữ liệu thật từ API
+
         // Real-time updates check
         setInterval(async () => {
             if (!isLoading && REALTIME_ENABLED && isServerFilteringEnabled()) {
                 try {
-                    const response = await fetch(`${API_BASE_URL}/documents`);
+                    const response = await fetch(`${API_BASE_URL}/api/documents`);
                     if (response.ok) {
                         const newDocuments = await response.json();
                         if (newDocuments.length > documents.length) {
@@ -1160,4 +1188,3 @@
     </script>
 </body>
 </html>
-
